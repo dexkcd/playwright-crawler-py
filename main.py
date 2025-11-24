@@ -78,6 +78,59 @@ success_template_str = """
 env = Environment(loader=BaseLoader())
 
 
+async def handle_cookie_consent(page):
+    """
+    Attempt to find and click cookie consent/accept buttons.
+    This function tries multiple common patterns for cookie acceptance buttons.
+    """
+    # Common selectors for cookie consent buttons
+    cookie_button_selectors = [
+        # Text-based selectors (case-insensitive)
+        "button:has-text('Accept All')",
+        "button:has-text('Accept all')",
+        "button:has-text('ACCEPT ALL')",
+        "button:has-text('Accept All Cookies')",
+        "button:has-text('Accept all cookies')",
+        "button:has-text('Allow All')",
+        "button:has-text('Allow all')",
+        "button:has-text('I Accept')",
+        "button:has-text('I accept')",
+        "button:has-text('Agree')",
+        "button:has-text('OK')",
+        "a:has-text('Accept All')",
+        "a:has-text('Accept all')",
+        "a:has-text('Accept All Cookies')",
+        # Common ID and class selectors
+        "[id*='accept'][id*='cookie']",
+        "[id*='accept'][id*='all']",
+        "[class*='accept'][class*='cookie']",
+        "[class*='accept'][class*='all']",
+        "[id*='cookie'][id*='accept']",
+        "[class*='cookie'][class*='accept']",
+        # Common aria-labels
+        "[aria-label*='Accept']",
+        "[aria-label*='accept']",
+    ]
+    
+    # Try each selector with a short timeout
+    for selector in cookie_button_selectors:
+        try:
+            # Wait for the button to appear (with a short timeout)
+            button = page.locator(selector).first
+            if await button.is_visible(timeout=1000):
+                # Click the button
+                await button.click(timeout=2000)
+                # Wait a moment for the cookie banner to disappear
+                await asyncio.sleep(0.5)
+                print(f"Successfully clicked cookie consent button: {selector}")
+                return True
+        except Exception:
+            # If selector doesn't match or timeout, try next one
+            continue
+    
+    return False
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index():
     # Render the success template with default values
@@ -113,6 +166,10 @@ async def take_screenshot(url: str = Form(default="https://news.ycombinator.com"
         try:
             # Navigate to the specified URL
             await page.goto(url)
+            
+            # Try to find and click cookie consent buttons
+            await handle_cookie_consent(page)
+            
             # Take a screenshot of the page
             screenshot = await page.screenshot()
             # Get the page title
